@@ -1,0 +1,106 @@
+{
+  "name": "Property Maintenance AI Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sms",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Twilio SMS Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "notes": "Twilio's messaging webhook points here. Twilio POSTs Body/From as form fields."
+    },
+    {
+      "parameters": {
+        "url": "http://property-maintenance-agent:8000/webhooks/sms",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "Body", "value": "={{ $json.body.Body }}" },
+            { "name": "From", "value": "={{ $json.body.From }}" }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Classify + Store + Notify (FastAPI agent)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 300],
+      "notes": "Delegates classification (Gemini), Supabase/SQLite persistence, and vendor + tenant Twilio SMS to the Python agent in src/app.py. Returns TwiML."
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.data }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [{ "name": "Content-Type", "value": "text/xml" }]
+          }
+        }
+      },
+      "name": "Respond with TwiML",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [760, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Classify + Store + Notify (FastAPI agent)').item.json.urgency }}",
+              "rightValue": "emergency",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "name": "Is Emergency?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [500, 480],
+      "notes": "Optional escalation branch: page the on-call property manager for emergency-tier requests in addition to the standard vendor SMS."
+    },
+    {
+      "parameters": {
+        "resource": "call",
+        "operation": "make",
+        "toNumber": "={{ $env.ON_CALL_MANAGER_PHONE }}",
+        "fromNumber": "={{ $env.TWILIO_FROM_NUMBER }}",
+        "twiml": "<Response><Say>Emergency maintenance request received. Check the dashboard.</Say></Response>"
+      },
+      "name": "Call On-Call Manager",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [760, 480],
+      "notes": "Fires only when the branch above is true."
+    }
+  ],
+  "connections": {
+    "Twilio SMS Webhook": {
+      "main": [[{ "node": "Classify + Store + Notify (FastAPI agent)", "type": "main", "index": 0 }]]
+    },
+    "Classify + Store + Notify (FastAPI agent)": {
+      "main": [
+        [
+          { "node": "Respond with TwiML", "type": "main", "index": 0 },
+          { "node": "Is Emergency?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Is Emergency?": {
+      "main": [[{ "node": "Call On-Call Manager", "type": "main", "index": 0 }], []]
+    }
+  },
+  "meta": {
+    "description": "Orchestration layer for the Property Maintenance AI Agent. n8n owns the webhook entrypoint and the emergency-escalation branch; the Python service (src/app.py) owns classification (Gemini), persistence, and standard tenant/vendor SMS via Twilio. Import this file into n8n via Workflows -> Import from File."
+  }
+}
