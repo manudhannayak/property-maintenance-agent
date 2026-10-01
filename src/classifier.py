@@ -22,9 +22,16 @@ _CATEGORY_KEYWORDS = {
     "electrical": ["outlet", "wiring", "sparking", "breaker", "light switch", "power"],
     "hvac": ["heat", "heater", "furnace", "ac", "air condition", "thermostat", "cooling"],
     "appliance": ["fridge", "refrigerator", "dishwasher", "washer", "dryer", "stove", "oven"],
-    "pest": ["roach", "mice", "rat", "ants", "bed bug", "pest"],
+    "pest": ["roach", "roaches", "mice", "mouse", "rat", "rats", "ant", "ants", "bed bug", "pest"],
     "structural": ["ceiling", "wall crack", "window broken", "door won't", "roof"],
 }
+
+
+def _contains_keyword(text: str, keyword: str) -> bool:
+    """Whole-word/phrase match so short keywords (e.g. 'ac', 'rat') don't
+    false-positive inside unrelated words ('roACHes', 'geneRATor')."""
+    pattern = r"\b" + re.escape(keyword) + r"\b"
+    return re.search(pattern, text) is not None
 
 
 @dataclass
@@ -52,16 +59,16 @@ def classify_rule_based(message: str) -> MaintenanceRequest:
     text = message.lower()
 
     urgency = "low"
-    if any(kw in text for kw in _EMERGENCY_KEYWORDS):
+    if any(_contains_keyword(text, kw) for kw in _EMERGENCY_KEYWORDS):
         urgency = "emergency"
-    elif any(kw in text for kw in _HIGH_KEYWORDS):
+    elif any(_contains_keyword(text, kw) for kw in _HIGH_KEYWORDS):
         urgency = "high"
-    elif any(kw in text for kw in ["broken", "not working", "won't"]):
+    elif any(_contains_keyword(text, kw) for kw in ["broken", "not working", "won't"]):
         urgency = "medium"
 
     category = "other"
     for cat, keywords in _CATEGORY_KEYWORDS.items():
-        if any(kw in text for kw in keywords):
+        if any(_contains_keyword(text, kw) for kw in keywords):
             category = cat
             break
 

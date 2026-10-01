@@ -7,6 +7,11 @@ n8n workflow handling the webhook orchestration and escalation branch.
 
 ## Architecture
 
+![Architecture diagram](docs/architecture.png)
+
+<details>
+<summary>Text version</summary>
+
 ```
 Tenant SMS
    │
@@ -25,6 +30,11 @@ FastAPI agent (src/app.py)
    ▼
 TwiML reply  ──►  back through n8n  ──►  Twilio  ──►  Tenant
 ```
+</details>
+
+## Example run
+
+![Example request/reply exchange](docs/example_exchange.png)
 
 n8n owns the public webhook entrypoint and the emergency phone-call
 escalation branch (a visual, easy-to-edit rule non-engineers on a property
@@ -58,6 +68,13 @@ curl -X POST http://localhost:8000/webhooks/sms \
 # See everything logged so far
 curl http://localhost:8000/requests
 ```
+
+![/requests endpoint output](docs/requests_endpoint.png)
+
+After a handful of simulated tenant texts, here's the real category/urgency
+breakdown the agent produced:
+
+![Request breakdown by category and urgency](docs/request_breakdown.png)
 
 To wire this up for real:
 1. Deploy `src/app.py` somewhere reachable (Railway, Render, an n8n-hosted

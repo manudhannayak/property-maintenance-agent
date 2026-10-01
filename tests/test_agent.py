@@ -21,6 +21,16 @@ def temp_db(monkeypatch):
         os.remove(path)
 
 
+def test_classify_does_not_false_positive_on_substrings():
+    # Regression test: "ac" (hvac keyword) must not match inside "roaches",
+    # and "rat" (pest keyword) must not match inside "generator".
+    result = classify_rule_based("Roaches in the kitchen, unit 7")
+    assert result.category == "pest"
+
+    result2 = classify_rule_based("The backup generator in the basement is making noise")
+    assert result2.category != "pest"
+
+
 def test_classify_detects_emergency_flooding():
     result = classify_rule_based("There's a flood in unit 4B, water everywhere!")
     assert result.urgency == "emergency"
